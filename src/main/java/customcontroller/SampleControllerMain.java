@@ -1,5 +1,5 @@
 package customcontroller;
-
+import customcontroller.controller.Controller;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClientBuilder;
@@ -15,6 +15,8 @@ public class SampleControllerMain {
 
             SharedInformerFactory informerFactory = client.informers();
             SharedIndexInformer<Deployment> deploymentInformer = informerFactory.sharedIndexInformerFor(Deployment.class, 10 * 60 * 1000);
+
+            Controller controller = new Controller(client, deploymentInformer);
 
         } catch (Exception e) {
             logger.info("Exception when interacting with Kubernetes: {} ", e.getMessage());
