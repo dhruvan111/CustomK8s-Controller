@@ -42,6 +42,42 @@ public class Controller {
         });
     }
 
+    public void run() {
+        logger.info("Custom controller is running...");
+        // Start informer to begin watching and processing events
+        deploymentInformer.run();
+        while (!deploymentInformer.hasSynced()) {
+            // Wait till Informer syncs
+        }
+
+        // Start a separate thread to handle events asynchronously
+        Thread eventHandlerThread = new Thread(() -> {
+            while (true) {
+                try {
+                    Deployment deployment = eventQueue.take();
+                    System.out.println(deployment.getSpec().getReplicas());
+                    System.out.println(deployment.getMetadata().getName());
+
+
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (Exception e) {
+                    logger.info("Error occurred while handling event: {}", e.getMessage());
+                }
+            }
+        });
+        eventHandlerThread.setDaemon(true);
+        eventHandlerThread.start();
+
+        // Block the main thread to keep the controller running
+        try {
+            Thread.currentThread().join();
+        } catch (InterruptedException e) {
+            logger.info("Custom Controller interrupted: {}", e.getMessage());
+        }
+    }
+
     private void handleAdd(Deployment deployment){
         if ((deployment.getMetadata().getName()).equals("coredns")){
             return;
