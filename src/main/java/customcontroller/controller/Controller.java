@@ -27,19 +27,33 @@ public class Controller {
         deploymentInformer.addEventHandler(new ResourceEventHandler<Deployment>() {
             @Override
             public void onAdd(Deployment deployment) {
-//                handleAdd(deployment);
+                handleAdd(deployment);
             }
 
             @Override
             public void onUpdate(Deployment oldDeployment, Deployment newDeployment) {
-//                handleUpdate();
+                handleUpdate();
             }
 
             @Override
             public void onDelete(Deployment deployment, boolean b) {
-//                handleDelete();
+                handleDelete();
             }
         });
     }
 
+    private void handleAdd(Deployment deployment){
+        if ((deployment.getMetadata().getName()).equals("coredns")){
+            return;
+        }
+        eventQueue.add(deployment);
+    }
+
+    private void handleUpdate(){
+
+    }
+
+    private void handleDelete(){
+
+    }
 }
