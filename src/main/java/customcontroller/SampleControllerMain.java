@@ -17,7 +17,7 @@ public class SampleControllerMain {
             SharedIndexInformer<Deployment> deploymentInformer = informerFactory.sharedIndexInformerFor(Deployment.class, 10 * 60 * 1000);
 
             Controller controller = new Controller(client, deploymentInformer);
-
+            controller.run();
         } catch (Exception e) {
             logger.info("Exception when interacting with Kubernetes: {} ", e.getMessage());
         }
