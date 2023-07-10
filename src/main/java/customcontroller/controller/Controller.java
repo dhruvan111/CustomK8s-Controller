@@ -35,12 +35,12 @@ public class Controller {
 
             @Override
             public void onUpdate(Deployment oldDeployment, Deployment newDeployment) {
-                handleUpdate();
+                // todo
             }
 
             @Override
             public void onDelete(Deployment deployment, boolean b) {
-                handleDelete();
+                // todo
             }
         });
     }
@@ -58,8 +58,6 @@ public class Controller {
             while (true) {
                 try {
                     Deployment deployment = eventQueue.take();
-                    System.out.println(deployment.getSpec().getReplicas());
-                    System.out.println(deployment.getMetadata().getName());
                     reconcileDeployment(deployment);
 
                 } catch (InterruptedException e) {
@@ -131,13 +129,4 @@ public class Controller {
         }
         eventQueue.add(deployment);
     }
-
-    private void handleUpdate(){
-
-    }
-
-    private void handleDelete(){
-
-    }
-
 }
