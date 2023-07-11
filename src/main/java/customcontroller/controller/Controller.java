@@ -30,7 +30,7 @@ public class Controller {
         deploymentInformer.addEventHandler(new ResourceEventHandler<Deployment>() {
             @Override
             public void onAdd(Deployment deployment) {
-                handleAdd(deployment);
+                handleAddAndUpdate(deployment);
             }
 
             @Override
@@ -58,6 +58,7 @@ public class Controller {
             while (true) {
                 try {
                     Deployment deployment = eventQueue.take();
+                    System.out.println(deployment);
                     reconcileDeployment(deployment);
 
                 } catch (InterruptedException e) {
@@ -81,11 +82,10 @@ public class Controller {
 
     // Reconciliation logic for a specific deployment
     public void reconcileDeployment(Deployment deployment) {
-        String deploymentName = deployment.getMetadata().getName();
 
         List<Node> nodeList = client.nodes().list().getItems();
         List<Pod> pods = client.pods().inNamespace(deployment.getMetadata().getNamespace())
-                .withLabel("app", deploymentName).list().getItems();
+                .withLabel("app", deployment.getSpec().getSelector().getMatchLabels().get("app")).list().getItems();
 
         Map<String, Integer> podCountsPerNode = new HashMap<>();
         for (Node node : nodeList) {
@@ -99,7 +99,12 @@ public class Controller {
         List<Map.Entry<String, Integer>> sortedPodCounts = new ArrayList<>(podCountsPerNode.entrySet());
         sortedPodCounts.sort(Comparator.comparingInt(Map.Entry::getValue));
 
+        podCountsPerNode.forEach((key, value) -> {
+            System.out.println(key + " --> " + value);
+        });
+
         //Iterate over the pods and check if a pod needs to be rescheduled
+        int ct = 0;
         for (Pod pod : pods) {
             String nodeName = pod.getSpec().getNodeName();
             int podCountOnNode = podCountsPerNode.getOrDefault(nodeName, 0);
@@ -115,15 +120,26 @@ public class Controller {
                 if (targetNode != null) {
                     // Reschedule the pod to the target node
                     pod.getSpec().setNodeName(targetNode);
-                    client.pods().inNamespace(deployment.getMetadata().getNamespace()).createOrReplace(pod);
+                    client.pods().inNamespace(deployment.getMetadata().getNamespace()).withName(deployment.getMetadata().getName()).patch(pod);
+                    System.out.println(pod.getMetadata().getName() + " rescheduled on  " + targetNode);
+
                     podCountsPerNode.put(targetNode, podCountsPerNode.getOrDefault(targetNode, 0) + 1);
+                    podCountsPerNode.put(nodeName, podCountsPerNode.getOrDefault(nodeName, 0) - 1);
+                } else {
+                    ct++;
                     podCountsPerNode.put(nodeName, podCountsPerNode.getOrDefault(nodeName, 0) - 1);
                 }
             }
         }
+        System.out.println(ct);
+        if (ct>0){
+            int replicas = deployment.getSpec().getReplicas();
+            deployment.getSpec().setReplicas(replicas-ct);
+            client.apps().deployments().inNamespace(deployment.getMetadata().getNamespace()).withName(deployment.getMetadata().getName()).patch(deployment);
+        }
     }
 
-    private void handleAdd(Deployment deployment){
+    private void handleAddAndUpdate(Deployment deployment){
         if ((deployment.getMetadata().getName()).equals("coredns")){
             return;
         }
