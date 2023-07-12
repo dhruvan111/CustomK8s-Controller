@@ -45,20 +45,20 @@ public class Controller {
         });
     }
 
-    public void run() {
+    public void run() throws InterruptedException {
         logger.info("Custom controller is running...");
         // Start informer to begin watching and processing events
         deploymentInformer.run();
         while (!deploymentInformer.hasSynced()) {
             // Wait till Informer syncs
         }
-
         // Start a separate thread to handle events asynchronously
         Thread eventHandlerThread = new Thread(() -> {
             while (true) {
                 try {
+                    Thread.sleep(5000);
                     Deployment deployment = eventQueue.take();
-                    System.out.println(deployment);
+                    System.out.println("Deployment: " + deployment.getMetadata().getName());
                     reconcileDeployment(deployment);
 
                 } catch (InterruptedException e) {
@@ -117,12 +117,14 @@ public class Controller {
                         break;
                     }
                 }
-                if (targetNode != null) {
+                if (targetNode != null && !"minikube".equals(targetNode)) {
                     // Reschedule the pod to the target node
+                    System.out.println("yes");
                     pod.getSpec().setNodeName(targetNode);
                     client.pods().inNamespace(deployment.getMetadata().getNamespace()).withName(deployment.getMetadata().getName()).patch(pod);
                     System.out.println(pod.getMetadata().getName() + " rescheduled on  " + targetNode);
 
+                    System.out.println("yes");
                     podCountsPerNode.put(targetNode, podCountsPerNode.getOrDefault(targetNode, 0) + 1);
                     podCountsPerNode.put(nodeName, podCountsPerNode.getOrDefault(nodeName, 0) - 1);
                 } else {
@@ -131,15 +133,16 @@ public class Controller {
                 }
             }
         }
-        System.out.println(ct);
         if (ct>0){
+            System.out.println("Extra pods present: " + ct);
+            System.out.println("Extra nodes required: " + Math.ceil((double) ct / 3));
             int replicas = deployment.getSpec().getReplicas();
             deployment.getSpec().setReplicas(replicas-ct);
             client.apps().deployments().inNamespace(deployment.getMetadata().getNamespace()).withName(deployment.getMetadata().getName()).patch(deployment);
         }
     }
 
-    private void handleAddAndUpdate(Deployment deployment){
+    private void handleAddAndUpdate(Deployment deployment) {
         if ((deployment.getMetadata().getName()).equals("coredns")){
             return;
         }
