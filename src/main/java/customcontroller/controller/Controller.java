@@ -56,7 +56,6 @@ public class Controller {
         Thread eventHandlerThread = new Thread(() -> {
             while (true) {
                 try {
-                    Thread.sleep(5000);
                     Deployment deployment = eventQueue.take();
                     System.out.println("Deployment: " + deployment.getMetadata().getName());
                     reconcileDeployment(deployment);
@@ -81,7 +80,7 @@ public class Controller {
     }
 
     // Reconciliation logic for a specific deployment
-    public void reconcileDeployment(Deployment deployment) {
+    public void reconcileDeployment(Deployment deployment) throws InterruptedException {
 
         List<Node> nodeList = client.nodes().list().getItems();
         List<Pod> pods = client.pods().inNamespace(deployment.getMetadata().getNamespace())
@@ -96,9 +95,6 @@ public class Controller {
             podCountsPerNode.put(nodeName, podCountsPerNode.getOrDefault(nodeName, 0) + 1);
         }
 
-        List<Map.Entry<String, Integer>> sortedPodCounts = new ArrayList<>(podCountsPerNode.entrySet());
-        sortedPodCounts.sort(Comparator.comparingInt(Map.Entry::getValue));
-
         podCountsPerNode.forEach((key, value) -> {
             System.out.println(key + " --> " + value);
         });
@@ -109,35 +105,17 @@ public class Controller {
             String nodeName = pod.getSpec().getNodeName();
             int podCountOnNode = podCountsPerNode.getOrDefault(nodeName, 0);
             if (podCountOnNode > 3) {
-                // Find a target node with fewer pods
-                String targetNode = null;
-                for (Map.Entry<String, Integer> entry : sortedPodCounts) {
-                    if (entry.getValue() < 3) {
-                        targetNode = entry.getKey();
-                        break;
-                    }
-                }
-                if (targetNode != null && !"minikube".equals(targetNode)) {
-                    // Reschedule the pod to the target node
-                    System.out.println("yes");
-                    pod.getSpec().setNodeName(targetNode);
-                    client.pods().inNamespace(deployment.getMetadata().getNamespace()).withName(deployment.getMetadata().getName()).patch(pod);
-                    System.out.println(pod.getMetadata().getName() + " rescheduled on  " + targetNode);
-
-                    System.out.println("yes");
-                    podCountsPerNode.put(targetNode, podCountsPerNode.getOrDefault(targetNode, 0) + 1);
-                    podCountsPerNode.put(nodeName, podCountsPerNode.getOrDefault(nodeName, 0) - 1);
-                } else {
-                    ct++;
-                    podCountsPerNode.put(nodeName, podCountsPerNode.getOrDefault(nodeName, 0) - 1);
-                }
+                ct++;
+                podCountsPerNode.put(nodeName, podCountsPerNode.getOrDefault(nodeName, 0) - 1);
             }
         }
         if (ct>0){
             System.out.println("Extra pods present: " + ct);
-            System.out.println("Extra nodes required: " + Math.ceil((double) ct / 3));
+            System.out.println("Extra nodes required: " + (int)Math.ceil((double) ct / 3));
             int replicas = deployment.getSpec().getReplicas();
             deployment.getSpec().setReplicas(replicas-ct);
+            deployment.getSpec().getTemplate().getSpec().setTopologySpreadConstraints(deployment.getSpec().getTemplate().getSpec().getTopologySpreadConstraints());
+            Thread.sleep(1000);
             client.apps().deployments().inNamespace(deployment.getMetadata().getNamespace()).withName(deployment.getMetadata().getName()).patch(deployment);
         }
     }
